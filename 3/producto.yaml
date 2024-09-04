@@ -1,33 +1,34 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'CloudFormation template to create an AWS Service Catalog product for IAM user creation.'
+Description: 'CloudFormation template to create an AWS Service Catalog portfolio and a product for creating an ECR repository.'
 
 Resources:
-
-  IAMUserProduct:
+  # Crear el producto de Service Catalog para ECR Repository
+  ServiceCatalogProduct:
     Type: "AWS::ServiceCatalog::CloudFormationProduct"
     Properties:
-      Name: "IAM User Product"
+      Name: "ECR Repository Product"
       Owner: "YourCompanyName"
-      Description: "Product to create an IAM user with AdministratorAccess and IAMUserChangePassword policies."
+      Description: "Product to create an Amazon ECR repository"
       Distributor: "YourCompanyName"
-      SupportDescription: "Contact support@yourcompany.com for issues."
+      SupportDescription: "Contact support@yourcompany.com for issues"
       SupportEmail: "support@yourcompany.com"
       SupportUrl: "https://support.yourcompany.com"
       ProvisioningArtifactParameters:
         - Name: "v1"
           Description: "Initial version"
           Info:
-            LoadTemplateFromURL: "https://s3.amazonaws.com/service-catalog-templates-471112631123-us-west-2/iam-user-product-template.yaml"
+            LoadTemplateFromURL: "https://s3.amazonaws.com/service-catalog-templates-471112631123-us-west-2/ecr-repository-product-template.yaml"
           Type: "CLOUD_FORMATION_TEMPLATE"
           DisableTemplateValidation: false
 
-  AssociateSecretsManagerPolicyWithPortfolio:
+  # Asignar el producto al portafolio
+  AssociateProductWithPortfolio:
     Type: "AWS::ServiceCatalog::PortfolioProductAssociation"
     Properties:
       PortfolioId: !ImportValue PortfolioId
-      ProductId: !Ref IAMUserProduct
+      ProductId: !Ref ServiceCatalogProduct
 
 Outputs:
   ProductId:
     Description: "The ID of the created Service Catalog product."
-    Value: !Ref IAMUserProduct
+    Value: !Ref ServiceCatalogProduct

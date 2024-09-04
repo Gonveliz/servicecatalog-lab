@@ -37,7 +37,7 @@ Resources:
   AttachAdminPolicy:
     Type: 'AWS::IAM::UserToGroupAddition'
     Properties:
-      GroupName: 'AdminGroup'
+      GroupName: 'Admin'
       Users: 
         - !Ref IAMUser
 
