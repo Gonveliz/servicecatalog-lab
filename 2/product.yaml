@@ -1,0 +1,33 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template to create an AWS Service Catalog product for IAM user creation.'
+
+Resources:
+
+  IAMUserProduct:
+    Type: "AWS::ServiceCatalog::CloudFormationProduct"
+    Properties:
+      Name: "IAM User Product"
+      Owner: "YourCompanyName"
+      Description: "Product to create an IAM user with AdministratorAccess and IAMUserChangePassword policies."
+      Distributor: "YourCompanyName"
+      SupportDescription: "Contact support@yourcompany.com for issues."
+      SupportEmail: "support@yourcompany.com"
+      SupportUrl: "https://support.yourcompany.com"
+      ProvisioningArtifactParameters:
+        - Name: "v1"
+          Description: "Initial version"
+          Info:
+            LoadTemplateFromURL: "https://s3.amazonaws.com/service-catalog-templates-471112631123-us-west-2/iam-user-product-template.yaml"
+          Type: "CLOUD_FORMATION_TEMPLATE"
+          DisableTemplateValidation: false
+
+  AssociateSecretsManagerPolicyWithPortfolio:
+    Type: "AWS::ServiceCatalog::PortfolioProductAssociation"
+    Properties:
+      PortfolioId: !ImportValue PortfolioId
+      ProductId: !Ref IAMUserProduct
+
+Outputs:
+  ProductId:
+    Description: "The ID of the created Service Catalog product."
+    Value: !Ref IAMUserProduct

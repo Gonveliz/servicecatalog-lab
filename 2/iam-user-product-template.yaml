@@ -1,0 +1,50 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template to create an IAM user with specified policies.'
+
+Parameters:
+  UserName:
+    Type: String
+    Description: 'The name of the IAM user to create.'
+
+Resources:
+  IAMUser:
+    Type: 'AWS::IAM::User'
+    Properties:
+      UserName: !Ref UserName
+
+  AdminAccessPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      ManagedPolicyName: 'AdministratorAccess'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: '*'
+            Resource: '*'
+
+  ChangePasswordPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      ManagedPolicyName: 'IAMUserChangePassword'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: 'iam:ChangePassword'
+            Resource: '*'
+
+  AttachAdminPolicy:
+    Type: 'AWS::IAM::UserToGroupAddition'
+    Properties:
+      GroupName: 'AdminGroup'
+      Users: 
+        - !Ref IAMUser
+
+Outputs:
+  IAMUserName:
+    Description: 'The name of the created IAM user.'
+    Value: !Ref IAMUser
+  IAMUserArn:
+    Description: 'The ARN of the created IAM user.'
+    Value: !GetAtt IAMUser.Arn
