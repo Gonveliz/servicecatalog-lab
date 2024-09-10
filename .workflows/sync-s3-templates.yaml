@@ -1,0 +1,1 @@
+aws s3 cp iam-user-product-template.yaml s3://service-catalog-templates-471112631123-us-west-2/iam-user-product-template.yaml

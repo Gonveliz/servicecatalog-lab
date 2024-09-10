@@ -1,0 +1,34 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template to create an AWS Service Catalog product for CodeBuild.'
+
+Resources:
+  # Crear el producto de Service Catalog para CodeBuild
+  ServiceCatalogProduct:
+    Type: "AWS::ServiceCatalog::CloudFormationProduct"
+    Properties:
+      Name: "CodeBuild Project Product"
+      Owner: "YourCompanyName"
+      Description: "Product to create a CodeBuild project"
+      Distributor: "YourCompanyName"
+      SupportDescription: "Contact support@yourcompany.com for issues"
+      SupportEmail: "support@yourcompany.com"
+      SupportUrl: "https://support.yourcompany.com"
+      ProvisioningArtifactParameters:
+        - Name: "v1"
+          Description: "Initial version"
+          Info:
+            LoadTemplateFromURL: "https://s3.amazonaws.com/service-catalog-templates-471112631123-us-west-2/codebuild-project-template.yaml"
+          Type: "CLOUD_FORMATION_TEMPLATE"
+          DisableTemplateValidation: false
+
+  # Asociar el producto al portafolio
+  AssociateProductWithPortfolio:
+    Type: "AWS::ServiceCatalog::PortfolioProductAssociation"
+    Properties:
+      PortfolioId: !ImportValue PortfolioId
+      ProductId: !Ref ServiceCatalogProduct
+
+Outputs:
+  ProductId:
+    Description: "The ID of the created Service Catalog product."
+    Value: !Ref ServiceCatalogProduct

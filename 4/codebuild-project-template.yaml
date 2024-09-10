@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "CloudFormation template to create a CodeBuild project."
+
+Parameters:
+  BuildProjectName:
+    Type: String
+    Description: "Nombre del proyecto de CodeBuild"
+    Default: "docker-node-app-build-project"
+  GitHubRepository:
+    Type: String
+    Description: "URL del repositorio de GitHub"
+    Default: "https://github.com/Gonveliz/node-app"
+  ECRRepository:
+    Type: String
+    Description: "Nombre del repositorio ECR"
+    Default: "node-app"
+  ImagePath:
+    Type: String
+    Description: "Ruta del Dockerfile"
+    Default: "Dockerfile"
+
+Resources:
+  CodeBuildProject:
+    Type: "AWS::CodeBuild::Project"
+    Properties: 
+      Name: !Ref BuildProjectName
+      Source: 
+        BuildSpec: |
+          version: 0.2
+          env:
+            shell: bash
+          phases:
+            pre_build:
+              commands:
+                - set +a
+                - echo Logging in to Amazon ECR...
+                - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+            build:
+              commands:
+                - echo Build started on `date`
+                - echo Building the Docker image...
+                - docker build -t $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:${CODEBUILD_RESOLVED_SOURCE_VERSION} -f $IMAGE_PATH .
+                - docker tag $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:${CODEBUILD_RESOLVED_SOURCE_VERSION} $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:latest
+            post_build:
+              commands:
+                - echo Build completed on `date`
+                - echo Pushing the Docker image...
+                - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:${CODEBUILD_RESOLVED_SOURCE_VERSION}
+                - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:latest
+        Location: !Ref GitHubRepository
+        Type: "GITHUB"
+      Artifacts: 
+        Type: "NO_ARTIFACTS"
+      Environment: 
+        ComputeType: "BUILD_GENERAL1_SMALL"
+        EnvironmentVariables: 
+          - Name: "ECR_REPOSITORY"
+            Type: "PLAINTEXT"
+            Value: !Ref ECRRepository
+          - Name: "AWS_REGION"
+            Type: "PLAINTEXT"
+            Value: !Ref AWS::Region
+          - Name: "AWS_ACCOUNT_ID"
+            Type: "PLAINTEXT"
+            Value: !Ref AWS::AccountId
+          - Name: "IMAGE_PATH"
+            Type: "PLAINTEXT"
+            Value: !Ref ImagePath
+        Image: "aws/codebuild/amazonlinux2-x86_64-standard:5.0"
+        ImagePullCredentialsType: "CODEBUILD"
+        PrivilegedMode: false
+        Type: "LINUX_CONTAINER"
+      ServiceRole: !Sub "arn:aws:iam::${AWS::AccountId}:role/service-role/codebuildrole-sc"
+      TimeoutInMinutes: 60
+      QueuedTimeoutInMinutes: 480
+      LogsConfig: 
+        CloudWatchLogs: 
+          Status: "ENABLED"
+        S3Logs: 
+          Status: "DISABLED"
+          EncryptionDisabled: false
+      Visibility: "PRIVATE"
+
+Outputs:
+  BuildProjectName:
+    Description: "The name of the CodeBuild project."
+    Value: !Ref BuildProjectName
