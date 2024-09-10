@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template to create an AWS Service Catalog product with CodePipeline and CodeBuild.'
+
+Parameters:
+  PipelineName:
+    Type: String
+    Description: "Nombre del pipeline de CodePipeline"
+    Default: "docker-node-app-pipeline"
+  BuildProjectName:
+    Type: String
+    Description: "Nombre del proyecto de CodeBuild"
+    Default: "docker-node-app-build-project"
+  GitHubRepository:
+    Type: String
+    Description: "URL del repositorio de GitHub"
+    Default: "https://github.com/Gonveliz/node-app"
+  BranchName:
+    Type: String
+    Description: "Nombre de la rama del repositorio de GitHub"
+    Default: "main"
+  ECRRepository:
+    Type: String
+    Description: "Nombre del repositorio ECR"
+    Default: "node-app"
+  ImagePath:
+    Type: String
+    Description: "Ruta del Dockerfile"
+    Default: "Dockerfile"
+
+Resources:
+  # Crear el producto de Service Catalog para CodePipeline
+  ServiceCatalogProduct:
+    Type: "AWS::ServiceCatalog::CloudFormationProduct"
+    Properties:
+      Name: "CodePipeline Product"
+      Owner: "YourCompanyName"
+      Description: "Product to create a CodePipeline pipeline with a CodeBuild project and GitHub integration"
+      Distributor: "YourCompanyName"
+      SupportDescription: "Contact support@yourcompany.com for issues"
+      SupportEmail: "support@yourcompany.com"
+      SupportUrl: "https://support.yourcompany.com"
+      ProvisioningArtifactParameters:
+        - Name: "v1"
+          Description: "Initial version"
+          Info:
+            LoadTemplateFromURL: "https://s3.amazonaws.com/service-catalog-templates-471112631123-us-west-2/codepipeline-template.yaml"
+          Type: "CLOUD_FORMATION_TEMPLATE"
+          DisableTemplateValidation: false
+
+  # Asignar el producto al portafolio
+  AssociateProductWithPortfolio:
+    Type: "AWS::ServiceCatalog::PortfolioProductAssociation"
+    Properties:
+      PortfolioId: !ImportValue PortfolioId
+      ProductId: !Ref ServiceCatalogProduct
+
+Outputs:
+  ProductId:
+    Description: "The ID of the created Service Catalog product."
+    Value: !Ref ServiceCatalogProduct

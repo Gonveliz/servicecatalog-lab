@@ -17,7 +17,7 @@ Resources:
         - Name: "v1"
           Description: "Initial version"
           Info:
-            LoadTemplateFromURL: "https://s3.amazonaws.com/service-catalog-templates-471112631123-us-west-2/s3-bucket-product-template.yaml"
+            LoadTemplateFromURL: "https://s3.amazonaws.com/service-catalog-templates-471112631123-us-east-1/s3-bucket-product-template.yaml"
           Type: "CLOUD_FORMATION_TEMPLATE"
           DisableTemplateValidation: false
 
