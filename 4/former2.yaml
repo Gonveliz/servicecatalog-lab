@@ -1,0 +1,130 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Metadata:
+    Generator: "former2"
+Description: ""
+Resources:
+    CodeBuildProject:
+        Type: "AWS::CodeBuild::Project"
+        Properties:
+            Name: "node-app-bp-2"
+            Source: 
+                BuildSpec: |
+                    version: 0.2
+                    env:
+                      shell: bash
+                    phases:
+                      pre_build:
+                        commands:
+                          - set +a
+                          - echo Logging in to Amazon ECR...
+                          - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+                      build:
+                        commands:
+                          - echo Build started on `date`
+                          - echo Building the Docker image...
+                          - docker build -t $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:${CODEBUILD_RESOLVED_SOURCE_VERSION} -f $IMAGE_PATH .
+                          - docker tag $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:${CODEBUILD_RESOLVED_SOURCE_VERSION} $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:latest
+                      post_build:
+                        commands:
+                          - echo Build completed on `date`
+                          - echo Pushing the Docker image...
+                          - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:${CODEBUILD_RESOLVED_SOURCE_VERSION}
+                          - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:latest
+                InsecureSsl: false
+                Type: "CODEPIPELINE"
+            Artifacts: 
+                EncryptionDisabled: false
+                Name: "node-app-bp-2"
+                Packaging: "NONE"
+                Type: "CODEPIPELINE"
+            Cache: 
+                Type: "NO_CACHE"
+            Environment: 
+                ComputeType: "BUILD_GENERAL1_SMALL"
+                EnvironmentVariables: 
+                  - 
+                    Name: "ECR_REPOSITORY"
+                    Type: "PLAINTEXT"
+                    Value: "node-app"
+                  - 
+                    Name: "AWS_REGION"
+                    Type: "PLAINTEXT"
+                    Value: !Ref AWS::Region
+                  - 
+                    Name: "AWS_ACCOUNT_ID"
+                    Type: "PLAINTEXT"
+                    Value: !Ref AWS::AccountId
+                  - 
+                    Name: "IMAGE_PATH"
+                    Type: "PLAINTEXT"
+                    Value: "Dockerfile"
+                Image: "aws/codebuild/amazonlinux2-x86_64-standard:5.0"
+                ImagePullCredentialsType: "CODEBUILD"
+                PrivilegedMode: false
+                Type: "LINUX_CONTAINER"
+            ServiceRole: !Sub "arn:aws:iam::${AWS::AccountId}:role/AWSCodePipelineRole"
+            TimeoutInMinutes: 60
+            QueuedTimeoutInMinutes: 480
+            EncryptionKey: !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/s3"
+            BadgeEnabled: false
+            LogsConfig: 
+                CloudWatchLogs: 
+                    Status: "ENABLED"
+                S3Logs: 
+                    Status: "DISABLED"
+                    EncryptionDisabled: false
+            Visibility: "PRIVATE"
+
+    CodePipelinePipeline:
+        Type: "AWS::CodePipeline::Pipeline"
+        Properties:
+            Name: "node-app"
+            RoleArn: !Sub "arn:aws:iam::${AWS::AccountId}:role/AWSCodePipelineRole"
+            ArtifactStore: 
+                Location: !Sub "codepipeline-${AWS::Region}-317438069553"
+                Type: "S3"
+            Stages: 
+              - 
+                Name: "Source"
+                Actions: 
+                  - 
+                    Name: "Source"
+                    ActionTypeId: 
+                        Category: "Source"
+                        Owner: "AWS"
+                        Provider: "CodeStarSourceConnection"
+                        Version: "1"
+                    Configuration: 
+                        BranchName: "master"
+                        ConnectionArn: !Sub "arn:aws:codeconnections:${AWS::Region}:${AWS::AccountId}:connection/3aa75360-f89e-42f7-a687-b73d337a06e7"
+                        DetectChanges: "false"
+                        FullRepositoryId: "Gonveliz/node-app"
+                        OutputArtifactFormat: "CODE_ZIP"
+                    OutputArtifacts: 
+                      - 
+                        Name: "SourceArtifact"
+                    Region: !Ref AWS::Region
+                    Namespace: "SourceVariables"
+                    RunOrder: 1
+              - 
+                Name: "Build"
+                Actions: 
+                  - 
+                    Name: "Build"
+                    ActionTypeId: 
+                        Category: "Build"
+                        Owner: "AWS"
+                        Provider: "CodeBuild"
+                        Version: "1"
+                    Configuration: 
+                        ProjectName: !Ref CodeBuildProject
+                    InputArtifacts: 
+                      - 
+                        Name: "SourceArtifact"
+                    OutputArtifacts: 
+                      - 
+                        Name: "BuildArtifact"
+                    Region: !Ref AWS::Region
+                    Namespace: "BuildVariables"
+                    RunOrder: 1
+

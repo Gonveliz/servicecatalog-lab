@@ -23,6 +23,9 @@ Parameters:
   ArtifactStoreBucket:
     Type: String
     Description: "Nombre del bucket de S3 para almacenar los artefactos"
+  ConnectionArn:
+    Type: String
+    Description: "ARN de la conexión de CodeStar"
 
 Resources:
   CodeBuildProject:
@@ -30,6 +33,7 @@ Resources:
     Properties: 
       Name: !Ref BuildProjectName
       Source: 
+        Type: "CODEPIPELINE"  # Se ajusta el Source a CODEPIPELINE
         BuildSpec: |
           version: 0.2
           env:
@@ -52,10 +56,8 @@ Resources:
                 - echo Pushing the Docker image...
                 - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:${CODEBUILD_RESOLVED_SOURCE_VERSION}
                 - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:latest
-        Location: !Ref GitHubRepository
-        Type: "GITHUB"
       Artifacts: 
-        Type: "NO_ARTIFACTS"
+        Type: "CODEPIPELINE"  # Se ajusta el Artifacts a CODEPIPELINE
       Environment: 
         ComputeType: "BUILD_GENERAL1_SMALL"
         EnvironmentVariables: 
@@ -100,17 +102,17 @@ Resources:
             - Name: SourceAction
               ActionTypeId:
                 Category: Source
-                Owner: ThirdParty
-                Provider: GitHub
+                Owner: AWS
+                Provider: CodeStarSourceConnection
                 Version: '1'
               OutputArtifacts:
                 - Name: SourceOutput
-              Configuration: 
+              Configuration:
                 BranchName: !Ref BranchName
-                ConnectionArn: "arn:aws:codeconnections:us-west-2:471112631123:connection/28c1ba95-742d-4c1f-bc49-6463028f88cb"
-                DetectChanges: "false"
+                ConnectionArn: !Ref ConnectionArn
                 FullRepositoryId: !Ref GitHubRepository
-                OutputArtifactFormat: "CODE_ZIP"
+              RunOrder: 1
+
         - Name: Build
           Actions:
             - Name: BuildAction
@@ -125,6 +127,7 @@ Resources:
                 - Name: BuildOutput
               Configuration:
                 ProjectName: !Ref BuildProjectName
+              RunOrder: 1
 
 Outputs:
   PipelineId:
