@@ -1,0 +1,166 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template to create a CodePipeline pipeline, CodeBuild, and an ECR repository with GitHub integration using an existing connection.'
+
+Parameters:
+  PipelineName:
+    Type: String
+    Description: "Nombre del pipeline de CodePipeline"
+  BuildProjectName:
+    Type: String
+    Description: "Nombre del proyecto de CodeBuild"
+  GitHubRepository:
+    Type: String
+    Description: "Nombre del repositorio de GitHub (e.g., your-github-username/your-repo)"
+  BranchName:
+    Type: String
+    Description: "Nombre de la rama del repositorio de GitHub"
+  ECRRepositoryName:
+    Type: String
+    Description: "Nombre del repositorio ECR"
+  ImagePath:
+    Type: String
+    Description: "Ruta del Dockerfile"
+  ArtifactStoreBucket:
+    Type: String
+    Description: "Nombre del bucket de S3 para almacenar los artefactos"
+  ConnectionArn:
+    Type: String
+    Description: "ARN de la conexión de CodeStar"
+
+Resources:
+  # Repositorio ECR
+  ECRRepository:
+    Type: "AWS::ECR::Repository"
+    Properties:
+      RepositoryName: !Ref ECRRepositoryName
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Eliminar imágenes más antiguas que 30 días",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "sinceImagePushed",
+                  "countUnit": "days",
+                  "countNumber": 30
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+
+  # Proyecto de CodeBuild
+  CodeBuildProject:
+    Type: "AWS::CodeBuild::Project"
+    Properties: 
+      Name: !Ref BuildProjectName
+      Source: 
+        Type: "CODEPIPELINE"
+        BuildSpec: |
+          version: 0.2
+          env:
+            shell: bash
+          phases:
+            pre_build:
+              commands:
+                - set +a
+                - echo Logging in to Amazon ECR...
+                - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+            build:
+              commands:
+                - echo Build started on `date`
+                - echo Building the Docker image...
+                - docker build -t $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:${CODEBUILD_RESOLVED_SOURCE_VERSION} -f $IMAGE_PATH .
+                - docker tag $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:${CODEBUILD_RESOLVED_SOURCE_VERSION} $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:latest
+            post_build:
+              commands:
+                - echo Build completed on `date`
+                - echo Pushing the Docker image...
+                - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:${CODEBUILD_RESOLVED_SOURCE_VERSION}
+                - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:latest
+      Artifacts: 
+        Type: "CODEPIPELINE"
+      Environment: 
+        ComputeType: "BUILD_GENERAL1_SMALL"
+        EnvironmentVariables: 
+          - Name: "ECR_REPOSITORY"
+            Type: "PLAINTEXT"
+            Value: !Ref ECRRepository
+          - Name: "AWS_REGION"
+            Type: "PLAINTEXT"
+            Value: !Ref AWS::Region
+          - Name: "AWS_ACCOUNT_ID"
+            Type: "PLAINTEXT"
+            Value: !Ref AWS::AccountId
+          - Name: "IMAGE_PATH"
+            Type: "PLAINTEXT"
+            Value: !Ref ImagePath
+        Image: "aws/codebuild/amazonlinux2-x86_64-standard:5.0"
+        ImagePullCredentialsType: "CODEBUILD"
+        PrivilegedMode: false
+        Type: "LINUX_CONTAINER"
+      ServiceRole: !Sub "arn:aws:iam::${AWS::AccountId}:role/service-role/codebuildrole-sc"
+      TimeoutInMinutes: 60
+      QueuedTimeoutInMinutes: 480
+      LogsConfig: 
+        CloudWatchLogs: 
+          Status: "ENABLED"
+        S3Logs: 
+          Status: "DISABLED"
+          EncryptionDisabled: false
+      Visibility: "PRIVATE"
+
+  # Pipeline de CodePipeline
+  CodePipeline:
+    Type: "AWS::CodePipeline::Pipeline"
+    Properties:
+      Name: !Ref PipelineName
+      RoleArn: !Sub "arn:aws:iam::${AWS::AccountId}:role/AWSCodePipelineRole"
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactStoreBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: SourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeStarSourceConnection
+                Version: '1'
+              OutputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                BranchName: !Ref BranchName
+                ConnectionArn: !Ref ConnectionArn
+                FullRepositoryId: !Ref GitHubRepository
+              RunOrder: 1
+
+        - Name: Build
+          Actions:
+            - Name: BuildAction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput
+              Configuration:
+                ProjectName: !Ref BuildProjectName
+              RunOrder: 1
+
+Outputs:
+  ECRRepositoryUrl:
+    Description: "The URL of the created ECR repository."
+    Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepositoryName}"
+
+  PipelineId:
+    Description: "The ID of the created CodePipeline pipeline."
+    Value: !Ref CodePipeline
