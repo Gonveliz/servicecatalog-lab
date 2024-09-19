@@ -5,6 +5,14 @@ Parameters:
   UserName:
     Type: String
     Description: 'The name of the IAM user to create.'
+  
+  RoleType:
+    Type: String
+    Description: 'Select the type of role for the IAM user.'
+    AllowedValues:
+      - Admin
+      - Devs
+    Default: Admin
 
 Resources:
   IAMUser:
@@ -12,8 +20,10 @@ Resources:
     Properties:
       UserName: !Ref UserName
 
+  # Conditional Admin Access Policy
   AdminAccessPolicy:
     Type: 'AWS::IAM::ManagedPolicy'
+    Condition: IsAdmin
     Properties:
       ManagedPolicyName: 'AdministratorAccess'
       PolicyDocument:
@@ -23,23 +33,43 @@ Resources:
             Action: '*'
             Resource: '*'
 
-  ChangePasswordPolicy:
+  # Devs Access Policy
+  DevAccessPolicy:
     Type: 'AWS::IAM::ManagedPolicy'
+    Condition: IsDev
     Properties:
-      ManagedPolicyName: 'IAMUserChangePassword'
+      ManagedPolicyName: 'DeveloperAccess'
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Action: 'iam:ChangePassword'
+            Action:
+              - 'ec2:Describe*'
+              - 's3:List*'
+              - 'cloudwatch:PutMetricData'
             Resource: '*'
 
+  # Attach Admin Policy to user
   AttachAdminPolicy:
     Type: 'AWS::IAM::UserToGroupAddition'
+    Condition: IsAdmin
     Properties:
       GroupName: 'Admin'
       Users: 
         - !Ref IAMUser
+
+  # Attach Dev Policy to user
+  AttachDevPolicy:
+    Type: 'AWS::IAM::UserToGroupAddition'
+    Condition: IsDev
+    Properties:
+      GroupName: 'Devs'
+      Users: 
+        - !Ref IAMUser
+
+Conditions:
+  IsAdmin: !Equals [!Ref RoleType, Admin]
+  IsDev: !Equals [!Ref RoleType, Devs]
 
 Outputs:
   IAMUserName:
